@@ -96,3 +96,70 @@ with st.form("add_task_form"):
         df = pd.concat([df, new_row], ignore_index=True)
         save_data(df)
         st.success(f"✅ Task {task_id} added successfully!")
+        # ---------- UPDATE TASK ----------
+
+st.header("✏️ Update Existing Task (GTEC User)")
+
+if not df.empty:
+    task_to_update = st.selectbox("Select Task ID to Update", df["Task ID"].unique())
+
+    if task_to_update:
+        selected_task = df[df["Task ID"] == task_to_update].iloc[0]
+
+        with st.form("update_task_form"):
+            status = st.selectbox("Status", ["Not yet started", "On hold", "In progress", "Completed"], index=["Not yet started", "On hold", "In progress", "Completed"].index(selected_task["Status"]))
+            rework_needed = st.radio("Rework Needed?", ["No", "Yes"], index=["No", "Yes"].index(selected_task["Rework Needed"]))
+            rework_type = st.selectbox("Rework Type", ["", "Minor", "Major"], index=["", "Minor", "Major"].index(selected_task["Rework Type"] if selected_task["Rework Type"] in ["Minor", "Major"] else ""))
+            rework_hours = st.number_input("Rework Hours", min_value=0.0, value=float(selected_task["Rework Hours"]))
+            rework_status = st.selectbox("Rework Status", ["", "Not yet started", "In progress", "Completed"], index=["", "Not yet started", "In progress", "Completed"].index(selected_task["Rework Status"] if selected_task["Rework Status"] in ["Not yet started", "In progress", "Completed"] else ""))
+
+            updated = st.form_submit_button("Update Task")
+
+            if updated:
+                df.loc[df["Task ID"] == task_to_update, "Status"] = status
+                df.loc[df["Task ID"] == task_to_update, "Rework Needed"] = rework_needed
+                df.loc[df["Task ID"] == task_to_update, "Rework Type"] = rework_type
+                df.loc[df["Task ID"] == task_to_update, "Rework Hours"] = rework_hours
+                df.loc[df["Task ID"] == task_to_update, "Rework Status"] = rework_status
+                save_data(df)
+                st.success(f"✅ Task {task_to_update} updated successfully!")
+
+# ---------- FINAL APPROVAL ----------
+
+st.header("✅ Final Approval (Requester)")
+
+if not df.empty:
+    task_to_approve = st.selectbox("Select Task ID for Final Approval", df["Task ID"].unique())
+
+    if task_to_approve:
+        selected_task = df[df["Task ID"] == task_to_approve].iloc[0]
+
+        with st.form("final_approval_form"):
+            final_approval = st.selectbox("Final Approval", ["", "OK", "Rework Needed"], index=["", "OK", "Rework Needed"].index(selected_task["Final Approval"] if selected_task["Final Approval"] in ["OK", "Rework Needed"] else ""))
+            completion_date = st.date_input("Completion Date", value=datetime.today() if selected_task["Completion Date"] == "" else pd.to_datetime(selected_task["Completion Date"]))
+
+            approved = st.form_submit_button("Submit Final Approval")
+
+            if approved:
+                df.loc[df["Task ID"] == task_to_approve, "Final Approval"] = final_approval
+                df.loc[df["Task ID"] == task_to_approve, "Completion Date"] = completion_date
+                save_data(df)
+                st.success(f"✅ Task {task_to_approve} approved successfully!")
+
+# ---------- KPI DASHBOARD ----------
+
+st.header("📊 KPI Dashboard")
+
+if not df.empty:
+    total_tasks = len(df)
+    completed_on_time = len(df[(df["Status"] == "Completed") & (pd.to_datetime(df["Completion Date"], errors='coerce') <= pd.to_datetime(df["Proposed Deadline"], errors='coerce'))])
+    rework_count = len(df[df["Rework Needed"] == "Yes"])
+
+    on_time_pct = (completed_on_time / total_tasks) * 100 if total_tasks > 0 else 0
+    rework_pct = (rework_count / total_tasks) * 100 if total_tasks > 0 else 0
+
+    st.metric("Total Tasks", total_tasks)
+    st.metric("On Time %", f"{on_time_pct:.1f}%")
+    st.metric("Rework %", f"{rework_pct:.1f}%")
+else:
+    st.info("No tasks available yet.")
